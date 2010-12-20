@@ -1,0 +1,80 @@
+﻿class StringBuilder
+{
+	var NewLine = Environment.NewLine;
+	int Length = 0, Capacity = 16;
+	var buffer = new char[Capacity];
+	
+	function Clear
+	{
+		Length = 0;
+	}
+	
+	function ToString
+	{
+		var ret = string.Alloc(Length);
+		__movsw(ret, buffer, Length);
+		return ret;
+	}
+	
+	function AppendWithLength(s : char*, length)
+	{
+		if (length == 0) return;
+		if (length == -1) length = lstrlen(s);
+		var cap = Capacity;
+		var size = Length + length - 1;
+		while (size >= Capacity)
+		{
+			Capacity += Capacity;
+			Capacity += Capacity;
+		}
+		if (Capacity != cap)
+		{
+			var tmp = new char[Capacity];
+			__movsw(tmp, buffer, Length);
+			buffer = tmp;
+		}
+		__movsw(addrof buffer[Length], s, length);
+		Length += length;
+	}
+	
+	function Append(text : string)
+	{
+		AppendWithLength(text, text.Length);
+	}
+	
+	function AppendVFormat(format : string, args)
+	{
+		Append(string.VFormat(format, args));
+	}
+	
+	function AppendFormat(format : string, args : params)
+	{
+		Append(string.VFormat(format, args));
+	}
+	
+	function AppendLineOnly()
+	{
+		Append(NewLine);
+	}
+	
+	function AppendLine(text : string)
+	{
+		AppendWithLength(text, text.Length);
+		AppendLineOnly();
+	}
+	
+	function AppendLineVFormat(format : string, args)
+	{
+		AppendLine(string.VFormat(format, args));
+	}
+	
+	function AppendLineFormat(format : string, args : params)
+	{
+		AppendLine(string.VFormat(format, args));
+	}
+	
+	function AppendChar(ch : char)
+	{
+		AppendWithLength(addrof ch, 1);
+	}
+}

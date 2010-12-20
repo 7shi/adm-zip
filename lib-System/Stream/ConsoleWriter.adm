@@ -1,0 +1,7 @@
+﻿class ConsoleWriter : TextWriter
+{
+	override Write(text : string)
+	{
+		print(text);
+	}
+}

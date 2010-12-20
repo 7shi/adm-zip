@@ -1,0 +1,28 @@
+﻿class StreamWriter : TextWriter
+{
+	var Stream : FileStream;
+	bool UseBOM = true;
+	
+	override Close()
+	{
+		if (Stream != null)
+		{
+			Stream.Close();
+			Stream = null;
+		}
+	}
+	
+	function Open(file : string)
+	{
+		Stream = new FileStream;
+		var ret = Stream.OpenWrite(file);
+		if (ret && UseBOM) Stream.Write(UTF8.BOM);
+		return ret;
+	}
+	
+	override Write(text : string)
+	{
+		if (Stream == null) return;
+		Stream.Write(UTF8.GetBytes(text));
+	}
+}

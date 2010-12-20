@@ -1,0 +1,32 @@
+﻿class StringDictionary : Hashtable
+{
+	function get_Values
+	{
+		return (string[])base.Values;
+	}
+	
+	function Add(key : string, v : string)
+	{
+		base.Add(key, v);
+	}
+	
+	function Remove(key : string)
+	{
+		return (string)base.Remove(key);
+	}
+	
+	function Get(key : string)
+	{
+		return (string)base.Get(key);
+	}
+	
+	function ContainsValue(v : string)
+	{
+		for (int i = 0; i < pairs.Count; i++)
+		{
+			var pair : Pair = pairs.Get(i);
+			if (v == (string)pair.Data) return true;
+		}
+		return false;
+	}
+}

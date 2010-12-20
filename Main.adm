@@ -1,0 +1,225 @@
+﻿//#pragma subsystem(WINDOWS_GUI)
+
+var crc32_table = \ =>
+{
+	var ret = new uint[256];
+	for (uint i = 0; i < 256; i++)
+	{
+		var crc = i;
+		for (int j = 0; j < 8; j++)
+		{
+			var crc2 = crc >> 1;
+			if ((crc & 1) == 0)
+				crc = crc2;
+			else
+				crc = crc2 ^ 0xedb88320;
+		}
+		ret[i] = crc;
+	}
+	return ret;
+}();
+
+function getCrc32(buf : byte[])
+{
+	uint crc = ~0;
+	for (int i = 0; i < buf.Length; i++)
+	{
+		var b = buf[i];
+		crc = (crc >> 8) ^ crc32_table[(crc ^ b) & 0xff];
+	}
+	return ~crc;
+}
+
+class ZipHeader
+{
+	short version, flags, compression, dos_time, dos_date;
+	uint crc32, compressed_size, uncompressed_size;
+	short filename_length, extra_field_length;
+	var _fname : byte[];
+	uint _attrs, _pos;
+
+	function Init(path : string, rel : string, data : byte[], pos)
+	{
+		var ft = File.GetLastWriteTime(path);
+		uint dd, dt;
+		FileTimeToDosDateTime(ft, addrof dd, addrof dt);
+		uint crc = 0, size = 0;
+		if (data != null)
+		{
+			crc = getCrc32(data);
+			size = data.Length;
+		}
+		var fn = rel.ToByteString();
+		version            = 10;
+		flags              = 0;
+		compression        = 0;
+		dos_time           = dt;
+		dos_date           = dd;
+		crc32              = getCrc32(data);
+		compressed_size    = size;
+		uncompressed_size  = size;
+		filename_length    = fn.Length;
+		extra_field_length = 0;
+		_fname             = fn;
+		_attrs             = GetFileAttributes(path);
+		_pos               = pos;
+	}
+
+	function Write(mw:MemoryWriter)
+	{
+		mw.WriteShort(version);
+		mw.WriteShort(flags);
+		mw.WriteShort(compression);
+		mw.WriteShort(dos_time);
+		mw.WriteShort(dos_date);
+		mw.WriteInt((int)crc32);
+		mw.WriteInt((int)compressed_size);
+		mw.WriteInt((int)uncompressed_size);
+		mw.WriteShort(filename_length);
+		mw.WriteShort(extra_field_length);
+	}
+}
+
+class ZipDirHeader
+{
+	ushort version;
+	var header : ZipHeader;
+	short _1; // file comment length
+	short _2; // disk number start
+	short _3; // internal file attributes
+	uint attrs, pos;
+	var fname : byte[];
+	
+	function Init(path : string, rel : string, data : byte[], pos)
+	{
+		var relb = rel.ToByteString();
+		version = 20;
+		header  = new ZipHeader;
+		header.Init(path, rel, data, pos);
+		_1      = 0;
+		_2      = 0;
+		_3      = 0;
+		attrs   = GetFileAttributes(path);
+		pos     = pos;
+		fname   = relb;
+	}
+	
+	function Write(mw:MemoryWriter)
+	{
+		mw.WriteShort(version);
+		header.Write(mw);
+		mw.WriteShort(_1);
+		mw.WriteShort(_2);
+		mw.WriteShort(_3);
+		mw.WriteInt((int)attrs);
+		mw.WriteInt((int)pos);
+		mw.WriteWithLength(fname, fname.Length);
+	}
+}
+
+Application.Run(new Form1);
+
+class Form1 : Form
+{
+	function ctor
+	{
+		Text = "ZIP";
+		SetClientSize(256, 256);
+	}
+	
+	override Create
+	{
+		base.Create();
+		DragAcceptFiles(hWnd, true);
+	}
+	
+	override WndProc(uMsg, wParam, lParam)
+	{
+		if (uMsg == WM_DROPFILES)
+		{
+			var files = GetDropFiles(wParam);
+			for (int i = 0; i < files.Length; i++)
+			{
+				var ft = File.GetLastWriteTime(files[i]);
+				printfln("%d: %s, %s", i, files[i], ft.ToString());
+			}
+		}
+		return base.WndProc(uMsg, wParam, lParam);
+	}
+}
+
+function GetDropFiles(hDrop)
+{
+	var len = DragQueryFile(hDrop, -1, null, 0);
+	var files = new string[len];
+	var buf = new char[512];
+	for (int i = 0; i < len; i++)
+	{
+		DragQueryFile(hDrop, i, buf, buf.Length);
+		files[i] = string.FromCharArray(buf, -1);
+	}
+	return files;
+}
+
+class File
+{
+	static function GetLastWriteTime(path : string)
+	{
+		var handle = CreateFile(path, GENERIC_READ,
+			FILE_SHARE_READ | FILE_SHARE_WRITE, null,
+			OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, null);
+		var ft = new FILETIME;
+		if (handle != INVALID_HANDLE_VALUE)
+		{
+			GetFileTime(handle, null, null, ft);
+			CloseHandle(handle);
+		}
+		var ret = new FILETIME;
+		FileTimeToLocalFileTime(ft, ret);
+		return ret;
+	}
+}
+
+class FILETIME
+{
+	uint dwLowDateTime;
+	uint dwHighDateTime;
+	
+	function ToString
+	{
+		var st = new SYSTEMTIME;
+		FileTimeToSystemTime(this, st);
+		return string.Format("%d/%02d/%02d %02d:%02d:%02d",
+			st.wYear, st.wMonth, st.wDay,
+			st.wHour, st.wMinute, st.wSecond);
+	}
+}
+
+class SYSTEMTIME
+{
+	ushort wYear;
+	ushort wMonth;
+	ushort wDayOfWeek;
+	ushort wDay;
+	ushort wHour;
+	ushort wMinute;
+	ushort wSecond;
+	ushort wMilliseconds;
+}
+
+const int FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+
+extern "shell32.dll"
+{
+	__stdcall __widecharset DragQueryFile(hDrop, iFile, lpszFile, cch);
+	__stdcall DragAcceptFiles(hWnd, fAccept : bool);
+}
+
+extern "kernel32.dll"
+{
+	__stdcall GetFileTime(hFile, lpCreationTime : FILETIME, lpLastAccessTime : FILETIME, lpLastWriteTime : FILETIME) : bool;
+	__stdcall FileTimeToLocalFileTime(lpFileTime : FILETIME, lpLocalFileTime : FILETIME) : bool;
+	__stdcall FileTimeToDosDateTime(lpFileTime : FILETIME, lpFatDate, lpFatTime) : bool;
+	__stdcall FileTimeToSystemTime(lpFileTime : FILETIME, lpSystemTime : SYSTEMTIME) : bool;
+	__stdcall __widecharset GetFileAttributes(lpFileName : string);
+}

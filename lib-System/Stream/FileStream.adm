@@ -1,0 +1,158 @@
+﻿extern "kernel32.dll" __stdcall __widecharset
+	CreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+extern "kernel32.dll" __stdcall
+{
+	CloseHandle(hObject);
+	GetFileSize(handle, lpFileSizeHigh);
+	SetFilePointer(handle, lDistanceToMove, lpDistanceToMoveHigh, dwMoveMethod);
+}
+
+const int MAX_PATH = 260;
+const int GENERIC_READ  = 0x80000000;
+const int GENERIC_WRITE = 0x40000000;
+const int FILE_SHARE_READ   = 1;
+const int FILE_SHARE_WRITE  = 2;
+const int CREATE_NEW        = 1;
+const int CREATE_ALWAYS     = 2;
+const int OPEN_EXISTING     = 3;
+const int OPEN_ALWAYS       = 4;
+const int TRUNCATE_EXISTING = 5;
+const int FILE_BEGIN   = 0;
+const int FILE_CURRENT = 1;
+const int FILE_END     = 2;
+const int FILE_ATTRIBUTE_NORMAL = 0x80;
+const int INVALID_HANDLE_VALUE = -1;
+
+class FileStream
+{
+	var handle = INVALID_HANDLE_VALUE;
+	
+	function dtor()
+	{
+		Close();
+	}
+	
+	function OpenRead(file : string)
+	{
+		Close();
+		handle = CreateFile(file, GENERIC_READ,
+			FILE_SHARE_READ | FILE_SHARE_WRITE, null,
+			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
+		return handle != INVALID_HANDLE_VALUE;
+	}
+	
+	function OpenWrite(file : string)
+	{
+		Close();
+		handle = CreateFile(file, GENERIC_WRITE, 0, null,
+			CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, null);
+		return handle != INVALID_HANDLE_VALUE;
+	}
+	
+	function Close()
+	{
+		if (handle != INVALID_HANDLE_VALUE)
+		{
+			CloseHandle(handle);
+			handle = INVALID_HANDLE_VALUE;
+			cache = null;
+			pos = 0;
+		}
+	}
+	
+	function get_Position()
+	{
+		if (handle == INVALID_HANDLE_VALUE)
+			return -1;
+		return SetFilePointer(handle, 0, null, FILE_CURRENT);
+	}
+	
+	function set_Position(pos)
+	{
+		if (handle == INVALID_HANDLE_VALUE)
+			return -1;
+		this.pos = pos;
+	}
+	
+	function get_Length()
+	{
+		if (handle == INVALID_HANDLE_VALUE)
+			return -1;
+		return GetFileSize(handle, null);
+	}
+	
+	const int CacheSize = 4096;
+	int pos, cacheStart, cacheEnd;
+	var cache : byte[];
+	
+	function ReadWithLength(buf, length)
+	{
+		if (handle == INVALID_HANDLE_VALUE) return -1;
+		if (length == 0) return 0;
+		if (cache == null || pos < cacheStart || pos >= cacheEnd)
+		{
+			var temp = new byte[CacheSize];
+			var rlen;
+			if (pos != cacheEnd)
+				SetFilePointer(handle, pos, null, FILE_BEGIN);
+			if (ReadFile(handle, temp, CacheSize, addrof rlen, null) == 0 || rlen == 0)
+				return -1;
+			cache = temp;
+			cacheStart = pos;
+			cacheEnd = pos + rlen;
+		}
+		var len = Math.Min(length, cacheEnd - pos);
+		__movsb(buf, addrof cache[pos - cacheStart], len);
+		pos += len;
+		if (len == length) return len;
+		var len2 = ReadWithLength(buf + len, length - len);
+		if (len2 == -1) return len;
+		return len + len2;
+	}
+	
+	function Read(length)
+	{
+		var ret = new byte[length];
+		var len = ReadWithLength(ret, length);
+		if (len < 0)
+			return null;
+		else if (len != length)
+		{
+			var tmp = new byte[len];
+			__movsb(tmp, ret, len);
+			ret = tmp;
+		}
+		return ret;
+	}
+	
+	function ReadToEnd()
+	{
+		return Read(Length - Position);
+	}
+	
+	function ReadByte
+	{
+		var ret = 0;
+		if (ReadWithLength(addrof ret, 1) < 1) return -1;
+		return ret;
+	}
+	
+	function WriteWithLength(data, length)
+	{
+		if (handle == INVALID_HANDLE_VALUE) return -1;
+		var len;
+		if (WriteFile(handle, data, length, addrof len, null) == 0)
+			return -1;
+		return len;
+	}
+	
+	function Write(data : byte[])
+	{
+		return WriteWithLength(data, data.Length);
+	}
+	
+	function WriteByte(data)
+	{
+		return WriteWithLength(addrof data, 1);
+	}
+}

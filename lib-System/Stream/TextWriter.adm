@@ -1,0 +1,48 @@
+﻿class TextWriter
+{
+	var NewLine = Environment.NewLine;
+	
+	function dtor()
+	{
+		Close();
+	}
+	
+	virtual Close()
+	{
+	}
+	
+	virtual Write(text : string)
+	{
+	}
+	
+	function WriteVFormat(format : string, args)
+	{
+		Write(string.VFormat(format, args));
+	}
+	
+	function WriteFormat(format : string, args : params)
+	{
+		Write(string.VFormat(format, args));
+	}
+	
+	function WriteLineOnly()
+	{
+		Write(NewLine);
+	}
+	
+	function WriteLine(text : string)
+	{
+		Write(text);
+		WriteLineOnly();
+	}
+	
+	function WriteLineVFormat(format : string, args)
+	{
+		WriteLine(string.VFormat(format, args));
+	}
+	
+	function WriteLineFormat(format : string, args : params)
+	{
+		WriteLine(string.VFormat(format, args));
+	}
+}

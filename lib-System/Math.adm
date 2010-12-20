@@ -1,0 +1,27 @@
+﻿class Math
+{
+	static function Abs(n)
+	{
+		if (n < 0) return -n;
+		return n;
+	}
+	
+	static function Max(a, b)
+	{
+		if (a > b) return a;
+		return b;
+	}
+	
+	static function Min(a, b)
+	{
+		if (a < b) return a;
+		return b;
+	}
+	
+	static function Sign(n)
+	{
+		if (n < 0) return -1;
+		if (n == 0) return 0;
+		return 1;
+	}
+}

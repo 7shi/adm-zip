@@ -1,0 +1,62 @@
+﻿class ArrayList : VarList
+{
+	override Clear
+	{
+		for (int i = 0; i < Count; i++)
+			__dereference(buffer[i]);
+		base.Clear();
+	}
+	
+	function ToArray
+	{
+		var ret = new object[Count];
+		for (int i = 0; i < Count; i++)
+			ret[i] = buffer[i];
+		return ret;
+	}
+	
+	function Get(order)
+	{
+		return (object)base.Get(order);
+	}
+	
+	function Set(order, obj : object)
+	{
+		if (0 <= order && order < Count)
+			__dereference(buffer[order]);
+		__reference(obj);
+		base.Set(order, obj);
+	}
+	
+	function Add(obj : object)
+	{
+		__reference(obj);
+		base.Add(obj);
+	}
+	
+	function Remove(obj : object)
+	{
+		__dereference(obj);
+		return base.Remove(obj);
+	}
+	
+	function RemoveAt(order)
+	{
+		return (object)base.RemoveAt(order);
+	}
+	
+	function IndexOf(obj : object)
+	{
+		return base.IndexOf(obj);
+	}
+	
+	function LastIndexOf(obj : object)
+	{
+		return base.LastIndexOf(obj);
+	}
+	
+	function Contains(obj : object)
+	{
+		return base.Contains(obj);
+	}
+}

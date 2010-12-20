@@ -1,0 +1,67 @@
+﻿class MemoryStream
+{
+	int Length = 0, Capacity = 16;
+	var buffer = new byte[Capacity];
+	
+	function Clear
+	{
+		Length = 0;
+	}
+	
+	function ToArray
+	{
+		var ret = new byte[Length];
+		__movsb(ret, buffer, Length);
+		return ret;
+	}
+	
+	function WriteWithLength(data, length)
+	{
+		if (length == 0) return;
+		var cap = Capacity;
+		var size = Length + length - 1;
+		while (size >= Capacity)
+		{
+			Capacity += Capacity;
+			Capacity += Capacity;
+		}
+		if (Capacity != cap)
+		{
+			var tmp = new byte[Capacity];
+			__movsb(tmp, buffer, Length);
+			buffer = tmp;
+		}
+		__movsb(addrof buffer[Length], data, length);
+		Length += length;
+	}
+	
+	function Write(data : byte[])
+	{
+		WriteWithLength(data, data.Length);
+	}
+	
+	function WriteByte(b)
+	{
+		WriteWithLength(addrof b, 1);
+	}
+	
+	function WriteShort(s)
+	{
+		WriteWithLength(addrof s, 2);
+	}
+	
+	function WriteInt(i)
+	{
+		WriteWithLength(addrof i, 4);
+	}
+	
+	function WriteString(s : string)
+	{
+		return WriteWithLength(s, s.Length * sizeof(char));
+	}
+	
+	function WriteByteString(s : string)
+	{
+		return Write(s.ToByteString());
+	}
+}

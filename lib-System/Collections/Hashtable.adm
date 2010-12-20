@@ -1,0 +1,115 @@
+﻿class Hashtable
+{
+	var pairs = new ArrayList;
+	
+	function get_Count
+	{
+		return pairs.Count;
+	}
+	
+	function get_Keys
+	{
+		var ret = new string[pairs.Count];
+		for (int i = 0; i < pairs.Count; i++)
+		{
+			var pair : Pair = pairs.Get(i);
+			ret[i] = pair.Name;
+		}
+		return ret;
+	}
+	
+	function get_Values
+	{
+		var ret = new object[pairs.Count];
+		for (int i = 0; i < pairs.Count; i++)
+		{
+			var pair : Pair = pairs.Get(i);
+			ret[i] = pair.Data;
+		}
+		return ret;
+	}
+	
+	function Clear
+	{
+		pairs.Clear();
+	}
+	
+	function GetPair(key : string)
+	{
+		for (int i = 0; i < pairs.Count; i++)
+		{
+			var pair : Pair = pairs.Get(i);
+			if (pair.Name == key) return pair;
+		}
+		return null;
+	}
+	
+	function Add(key : string, v : object)
+	{
+		var pair = GetPair(key);
+		if (pair != null)
+			pair.Data = v;
+		else
+			pairs.Add(Pair.Create(key, v));
+	}
+	
+	function Remove(key : string)
+	{
+		for (int i = 0; i < pairs.Count; i++)
+		{
+			var pair : Pair = pairs.Get(i);
+			if (pair.Name == key)
+			{
+				pairs.RemoveAt(i);
+				return pair.Data;
+			}
+		}
+		return null;
+	}
+	
+	function Get(key : string)
+	{
+		var pair = GetPair(key);
+		if (pair != null) return pair.Data;
+		return null;
+	}
+	
+	function ContainsKey(key : string)
+	{
+		for (int i = 0; i < pairs.Count; i++)
+		{
+			var pair : Pair = pairs.Get(i);
+			if (pair.Name == key) return true;
+		}
+		return false;
+	}
+	
+	function ContainsValue(v : object)
+	{
+		for (int i = 0; i < pairs.Count; i++)
+		{
+			var pair : Pair = pairs.Get(i);
+			if (pair.Data == v) return true;
+		}
+		return false;
+	}
+	
+	function Sort
+	{
+		pairs.SortBy(\(a : string, b : string) => string.Compare(a, b));
+	}
+}
+
+class Pair
+{
+	var Name : string;
+	var Data : object;
+	
+	static function Create(name : string, data : object)
+	{
+		var ret = new Pair;
+		ret.Name = name;
+		ret.Data = data;
+		return ret;
+	}
+}

@@ -1,0 +1,5 @@
+syntax: glob
+src-*.adm
+_cleanup.bat
+gen-XML.exe
+output.exe
