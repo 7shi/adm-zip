@@ -32,6 +32,16 @@ function GetDropFiles(hDrop)
 	return files;
 }
 
+function writeShort(fs : FileStream, v : short)
+{
+	fs.WriteWithLength(addrof v, sizeof v);
+}
+
+function writeUInt(fs : FileStream, v : uint)
+{
+	fs.WriteWithLength(addrof v, sizeof v);
+}
+
 class File
 {
 	static function GetLastWriteTime(path : string)

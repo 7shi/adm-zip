@@ -1,4 +1,4 @@
-﻿//#pragma subsystem(WINDOWS_GUI)
+﻿#pragma subsystem(WINDOWS_GUI)
 
 var crc32_table = \ =>
 {
@@ -38,7 +38,7 @@ class ZipHeader
 	var _fname : byte[];
 	uint _attrs, _pos;
 
-	function Init(path : string, rel : string, data : byte[], pos)
+	function Init(path : string, rel : string, data : byte[], pos : uint)
 	{
 		var ft = File.GetLastWriteTime(path);
 		uint dd, dt;
@@ -55,7 +55,7 @@ class ZipHeader
 		compression        = 0;
 		dos_time           = dt;
 		dos_date           = dd;
-		crc32              = getCrc32(data);
+		crc32              = crc;
 		compressed_size    = size;
 		uncompressed_size  = size;
 		filename_length    = fn.Length;
@@ -65,18 +65,18 @@ class ZipHeader
 		_pos               = pos;
 	}
 
-	function Write(mw:MemoryWriter)
+	function Write(fs:FileStream)
 	{
-		mw.WriteShort(version);
-		mw.WriteShort(flags);
-		mw.WriteShort(compression);
-		mw.WriteShort(dos_time);
-		mw.WriteShort(dos_date);
-		mw.WriteInt((int)crc32);
-		mw.WriteInt((int)compressed_size);
-		mw.WriteInt((int)uncompressed_size);
-		mw.WriteShort(filename_length);
-		mw.WriteShort(extra_field_length);
+		fs.writeShort(version);
+		fs.writeShort(flags);
+		fs.writeShort(compression);
+		fs.writeShort(dos_time);
+		fs.writeShort(dos_date);
+		fs.writeUInt(crc32);
+		fs.writeUInt(compressed_size);
+		fs.writeUInt(uncompressed_size);
+		fs.writeShort(filename_length);
+		fs.writeShort(extra_field_length);
 	}
 }
 
@@ -90,7 +90,7 @@ class ZipDirHeader
 	uint attrs, pos;
 	var fname : byte[];
 	
-	function Init(path : string, rel : string, data : byte[], pos)
+	function Init(path : string, rel : string, data : byte[], pos : uint)
 	{
 		var relb = rel.ToByteString();
 		version = 20;
@@ -104,20 +104,115 @@ class ZipDirHeader
 		fname   = relb;
 	}
 	
-	function Write(mw:MemoryWriter)
+	function Write(fs:FileStream)
 	{
-		mw.WriteShort(version);
-		header.Write(mw);
-		mw.WriteShort(_1);
-		mw.WriteShort(_2);
-		mw.WriteShort(_3);
-		mw.WriteInt((int)attrs);
-		mw.WriteInt((int)pos);
-		mw.WriteWithLength(fname, fname.Length);
+		fs.writeShort(version);
+		header.Write(fs);
+		fs.writeShort(_1);
+		fs.writeShort(_2);
+		fs.writeShort(_3);
+		fs.writeUInt(attrs);
+		fs.writeUInt(pos);
+		fs.Write(fname);
 	}
 }
 
-Application.Run(new Form1);
+function mkrel(reldir : string, name : string)
+{
+	if (reldir == "") return name;
+	return reldir + "/" + name;
+}
+
+function writeFile(list : ArrayList, fs : FileStream, path : string, rel : string)
+{
+	var fs2 = new FileStream;
+	fs2.OpenRead(path);
+	uint len = fs2.Length;
+	var data = fs2.ReadToEnd();
+	fs2.Close();
+	
+	uint p = fs.Position;
+	var ziph = new ZipDirHeader;
+	ziph.Init(path, rel, data, p);
+	fs.WriteByte('P');
+	fs.WriteByte('K');
+	fs.WriteByte(3);
+	fs.WriteByte(4);
+	ziph.header.Write(fs);
+	fs.Write(ziph.fname);
+	fs.Write(data);
+	list.Add(ziph);
+}
+
+function writeDir(list : ArrayList, fs : FileStream, path : string, rel : string)
+{
+	uint p = fs.Position;
+	var ziph = new ZipDirHeader;
+	ziph.Init(path, rel + "/", null, p);
+	fs.WriteByte('P');
+	fs.WriteByte('K');
+	fs.WriteByte(3);
+	fs.WriteByte(4);
+	ziph.header.Write(fs);
+	fs.Write(ziph.fname);
+	list.Add(ziph);
+	
+	var files = Directory.GetFiles(path);
+	for (int i = 0; i < files.Length; i++)
+	{
+		var f = files[i];
+		writeFile(list, fs, f, mkrel(rel, Path.GetFileName(f)));
+	}
+	var dirs = Directory.GetDirectories(path);
+	for (int i = 0; i < dirs.Length; i++)
+	{
+		var d = dirs[i];
+		writeDir(list, fs, d, mkrel(rel, Path.GetFileName(d)));
+	}
+}
+
+function write(list : ArrayList, fs : FileStream, path : string, rel : string)
+{
+	if (File.Exists(path))
+		writeFile(list, fs, path, rel);
+	else
+		writeDir(list, fs, path, rel);
+}
+
+function writeZip(fs : FileStream, files : string[])
+{
+	var list = new ArrayList;
+	
+	for (int i = 0; i < files.Length; i++)
+	{
+		var f = files[i];
+		write(list, fs, f, Path.GetFileName(f));
+	}
+	
+	uint dir_start = fs.Position;
+	for (int i = 0; i < list.Count; i++)
+	{
+		var ziph = list.Get(i) as ZipDirHeader;
+		fs.WriteByte('P');
+		fs.WriteByte('K');
+		fs.WriteByte(1);
+		fs.WriteByte(2);
+		ziph.Write(fs);
+	}
+	uint dir_len = fs.Position - dir_start;
+	
+	fs.WriteByte('P');
+	fs.WriteByte('K');
+	fs.WriteByte(5);
+	fs.WriteByte(6);
+	fs.writeShort(0); // number of this disk
+	fs.writeShort(0); // number of the disk with the start of the central directory
+	fs.writeShort(list.Count);
+	fs.writeShort(list.Count);
+	fs.writeUInt(dir_len);
+	fs.writeUInt(dir_start);
+	fs.writeShort(0); // zipfile comment length
+}
 
 class Form1 : Form
 {
@@ -138,22 +233,14 @@ class Form1 : Form
 		if (uMsg == WM_DROPFILES)
 		{
 			var files = GetDropFiles(wParam);
-			for (int i = 0; i < files.Length; i++)
-			{
-				var f = files[i];
-				var ft = File.GetLastWriteTime(f);
-				printfln("%d: %s, %s", i, f, ft.ToString());
-				if (Directory.Exists(f))
-				{
-					var dirs = Directory.GetDirectories(f);
-					for (int j = 0; j < dirs.Length; j++)
-						printfln("  %s/", Path.GetFileName(dirs[j]));
-					var files = Directory.GetFiles(f);
-					for (int j = 0; j < files.Length; j++)
-						printfln("  %s", Path.GetFileName(files[j]));
-				}
-			}
+			var zip = Path.ChangeExtension(files[0], ".zip");
+			var fs = new FileStream;
+			fs.OpenWrite(zip);
+			writeZip(fs, files);
+			fs.Close();
 		}
 		return base.WndProc(uMsg, wParam, lParam);
 	}
 }
+
+Application.Run(new Form1);
